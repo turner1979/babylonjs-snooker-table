@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Bablyon JS | Snooker Table &amp; Balls</title>
+
+    <!-- Babylon.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.2/dat.gui.min.js"></script>
+    <script src="https://assets.babylonjs.com/generated/Assets.js"></script>
+    <script src="https://cdn.babylonjs.com/ammo.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    <script src="https://cdn.babylonjs.com/cannon.js"></script>
+    <script src="https://cdn.babylonjs.com/Oimo.js"></script>
+    <script src="https://cdn.babylonjs.com/earcut.min.js"></script>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
+    <script src="https://cdn.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.js"></script>
+    <script src="https://cdn.babylonjs.com/serializers/babylonjs.serializers.min.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
+
+    <style>
+      html,
+      body {
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        text-align: center;
+      }
+
+      canvas {
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+        <h1>BabylonJS | Snooker Table</h1>
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+
+      const startRenderLoop = function (engine, canvas) {
+        engine.runRenderLoop(function () {
+          if (sceneToRender && sceneToRender.activeCamera) {
+            sceneToRender.render();
+          }
+        });
+      };
+
+      var engine = null;
+      var scene = null;
+      var sceneToRender = null;
+
+      const createDefaultEngine = () => {
+        return new BABYLON.Engine(canvas, true, {
+          preserveDrawingBuffer: true,
+          stencil: true,
+          disableWebGL2Support: false,
+        });
+      };
+
+      /**
+       * createScene function
+       */
+      const createScene = function () {
+        const scene = new BABYLON.Scene(engine);
+        addCamera();
+        addLight();
+        createTable();
+        createSpots();
+        createBaulkLine();
+        createBalls();
+        return scene;
+      };
+
+      /**
+       * add camera
+       */
+      const addCamera = () => {
+        let radius = 50;
+        const camera = new BABYLON.ArcRotateCamera(
+          "camera",
+          -(Math.PI / 2),
+          (Math.PI / 3),
+          radius,
+          new BABYLON.Vector3(0, 0, 0)
+        );
+        camera.setTarget(BABYLON.Vector3.Zero());
+        camera.attachControl(canvas, true);
+
+        const interval = setInterval(() => {
+            if (camera.radius < 250) {
+                radius++;
+                camera.radius = radius;
+            } else {
+                clearInterval(interval);
+            }
+        }, 10);
+      };
+
+      /**
+       * add light
+       */
+      const addLight = () => {
+        const light = new BABYLON.HemisphericLight(
+          "light",
+          new BABYLON.Vector3(0, 1, 0)
+        );
+        light.intensity = 0.7;
+      };
+
+      /**
+       * create the table base
+       */
+      const createTable = () => {
+        const table = BABYLON.MeshBuilder.CreateBox("box", {
+          width: 360,
+          height: 4,
+          depth: 180,
+        });
+        const baize = new BABYLON.StandardMaterial("baize");
+        baize.alpha = 1;
+        baize.diffuseColor = BABYLON.Color3.FromHexString("#32B115");
+        table.material = baize;
+      };
+
+      /**
+       * create the baulk line
+       */
+      const createBaulkLine = () => {
+        const baulkLine = BABYLON.MeshBuilder.CreateBox("baulkLine", {
+          width: 0.25,
+          height: 4,
+          depth: 180,
+        });
+        baulkLine.position.x = -108; // position line 1/5 of table length away from top cushion
+
+        const lineMaterial = new BABYLON.StandardMaterial("lineMat");
+        lineMaterial.alpha = 1;
+        lineMaterial.diffuseColor = BABYLON.Color3.FromHexString("#ffffff");
+        baulkLine.material = lineMaterial;
+      };
+
+      /**
+       * create the spots for the colour balls
+       */
+      const createSpots = () => {
+        const spot_positions = [
+          { x: -108, z: -30 }, // yellow
+          { x: -108, z: 0 }, // green
+          { x: -108, z: 30 }, // brown
+          { x: 0, z: 0 }, // blue,
+          { x: 91, z: 0 }, // pink
+          { x: 148, z: 0 }, // black
+        ];
+        const spot_material = new BABYLON.PBRMaterial("spotMaterial");
+        spot_material.metallic = 0;
+        spot_material.roughness = 0.2;
+        spot_material.albedoColor = BABYLON.Color3.White();
+
+        spot_positions.map((spot_position) => {
+          const spot = BABYLON.MeshBuilder.CreateCylinder("cylinder", {
+            height: 4,
+            diameter: 1,
+          });
+          spot.position.y = 0.5;
+          spot.position.x = spot_position.x;
+          spot.position.z = spot_position.z;
+          spot.material = spot_material;
+        });
+      };
+
+      /**
+       * create the red and colour balls and set positions
+       */
+      const createBalls = () => {
+        // constants
+        const BALL_POS_Y = 4.6;
+        const BALL_DIAMETER = 5.2;
+        const BALL_SEGMENTS = 32;
+
+        // ball names and colours
+        const ball_meta = [
+          { name: "yellow", colour: "#F8EC00" },
+          { name: "green", colour: "#188400" },
+          { name: "brown", colour: "#603700" },
+          { name: "blue", colour: "#004FC6" },
+          { name: "pink", colour: "#ff5ac5" },
+          { name: "black", colour: "#000000" },
+          { name: "red", colour: "#aa0000" },
+          { name: "white", colour: "#ffffff" },
+        ];
+
+        // create different materials for balls
+        const ball_materials = {};
+        ball_meta.map((bm) => {
+          const material = new BABYLON.PBRMaterial(bm.name + "BallMat");
+          material.metallic = 0;
+          material.roughness = 0.2;
+          material.albedoColor = BABYLON.Color3.FromHexString(bm.colour);
+          ball_materials[bm.name] = material;
+        });
+
+        // define each ball starting position and material to use
+        const balls = [
+          // colours
+          { x: -108, z: -30, ballMat: "yellow" },
+          { x: -108, z: 30, ballMat: "green" },
+          { x: -108, z: 0, ballMat: "brown" },
+          { x: 0, z: 0, ballMat: "blue" },
+          { x: 91, z: 0, ballMat: "pink" },
+          { x: 148, z: 0, ballMat: "black" },
+          // reds
+          { x: 97, z: 0 },
+          { x: 101.8, z: -2.7 },
+          { x: 101.8, z: 2.7 },
+          { x: 106.6, z: -5.4 },
+          { x: 106.6, z: 0 },
+          { x: 106.6, z: 5.4 },
+          { x: 111.4, z: -8.1 },
+          { x: 111.4, z: -2.7 },
+          { x: 111.4, z: 2.7 },
+          { x: 111.4, z: 8.1 },
+          { x: 116.2, z: -10.8 },
+          { x: 116.2, z: -5.4 },
+          { x: 116.2, z: 0 },
+          { x: 116.2, z: 5.4 },
+          { x: 116.2, z: 10.8 },
+          // cue ball
+          { x: -108, z: -15, ballMat: "white" }
+        ];
+
+        // add balls to scene
+        balls.map((ball, index) => {
+          const b = BABYLON.MeshBuilder.CreateSphere("ball", {
+            diameter: BALL_DIAMETER,
+            segments: BALL_SEGMENTS,
+          });
+          b.position.y = BALL_POS_Y;
+          b.position.x = ball.x;
+          b.position.z = ball.z;
+          b.material = ball.ballMat
+            ? ball_materials[ball.ballMat]
+            : ball_materials["red"];
+        });
+      };
+
+      /**
+       * initFunction
+       */
+      window.initFunction = async function () {
+        const asyncEngineCreation = async function () {
+          try {
+            return createDefaultEngine();
+          } catch (e) {
+            console.log(
+              "the available createEngine function failed. Creating the default engine instead"
+            );
+            return createDefaultEngine();
+          }
+        };
+
+        window.engine = await asyncEngineCreation();
+        if (!engine) throw "engine should not be null.";
+        startRenderLoop(engine, canvas);
+        window.scene = createScene();
+      };
+
+      /**
+       * call init function and render scene
+       */
+      initFunction().then(() => {
+        sceneToRender = scene;
+      });
+
+      /**
+       * window resize event handler
+       */
+      window.addEventListener("resize", function () {
+        engine.resize();
+      });
+    </script>
+  </body>
+</html>
